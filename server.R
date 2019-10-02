@@ -114,18 +114,29 @@ function(input, output, session) {
   
   
   # subset of pixdf for maps
-  pcv_sel_bbox <- reactive({
+  sel_bbox <- reactive({
     input$nodePlot
-    pixdf %>% 
+    gddf <- pcv_gdem_selday()
+    if (is.null(gddf)) gddf <- pixdf
+    pcbbox <- pixdf %>% 
       filter(day == selected_day(), refdem == input$refdemselect) %>% 
       rt_nodebbox(selNode, dilate = 0.03) 
+    gdbbox <- gddf %>% 
+      rt_nodebbox(selNode, dilate = 0.03)
+    out <- list(
+      minlat = min(pcbbox$minlat, gdbbox$minlat),
+      minlon = min(pcbbox$minlon, gdbbox$minlon),
+      maxlat = max(pcbbox$maxlat, gdbbox$maxlat),
+      maxlon = max(pcbbox$maxlon, gdbbox$maxlon)
+    )
+    out
   })
   pcv_selected <- reactive({
     if (!length(selected_day())) return(NULL)
     input$nodePlot
     out <- pixdf %>% 
       filter(day == selected_day(), refdem == input$refdemselect) %>% 
-      grab_bbox(pcv_sel_bbox()) %>% 
+      grab_bbox(sel_bbox()) %>% 
       mutate(longitude = ifelse(is.na(longitude_vectorproc),
                                 longitude, longitude_vectorproc),
              latitude = ifelse(is.na(latitude_vectorproc),
@@ -144,18 +155,23 @@ function(input, output, session) {
     out
   })
   
-  # Data frame with locations of selected nodes' gdem pixc(vec)
-  pcv_gdem_selected <- reactive({
+  # Data frame with selected day's gdem pixc(vec)
+  pcv_gdem_selday <- reactive({
     input$nodePlot
     if (!length(selected_day())) return(NULL)
     load(sprintf("cache/gdpix%s.RData", selected_day()))
     gdempixdf <- get(sprintf("gdpix%s", selected_day()))
     rm(list = sprintf("gdpix%s", selected_day()))
+    gdempixdf
+  })
+  
+  
+  # Data frame with locations of selected nodes' gdem pixc(vec)
+  pcv_gdem_selected <- reactive({
     if (!length(selNode) || !length(selected_day())) return(NULL)
     
-    plotdf <- gdempixdf %>%
-      filter(day == selected_day()) %>% 
-      grab_bbox(pcv_sel_bbox()) %>% 
+    plotdf <- pcv_gdem_selday() %>%
+      grab_bbox(sel_bbox()) %>% 
       mutate(alpha = ifelse(node_index %in% selNode, 0.8, 0.3))
     plotdf
   })
@@ -215,6 +231,7 @@ function(input, output, session) {
                             plot = FALSE, scale = scalearg))
     if (inherits(out, "try-error")) return(NULL)
     out$nodeid_chr <- as.character(out$node_id)
+    out$errtype = factor(out$errtype, levels = c("error", "cumul. error"))
     out
   })
   # nodeaccum_shared <- SharedData$new(nodeaccumdf, key = ~nodeid_chr)
@@ -268,7 +285,7 @@ function(input, output, session) {
   #### Pixel accumulation plot ####
   
   output$pix_accum <- renderPlot({
-    if (is.null(pcv_selected())) return(ggplot())
+    if (is.null(pcv_selected()) || nrow(pcv_selected()) == 0) return(ggplot())
     if (input$varselect == "wse") {
       plotdf <- pcv_selected() %>% 
         filter(alpha > 0.5, # hacky check on whether in node selection or not
@@ -486,6 +503,46 @@ function(input, output, session) {
     if (flipx) out <- out + scale_x_reverse()
     if (flipy) out <- out + scale_y_reverse()
     out
+  })
+  
+  
+  ### MODAL DIALOGS -------------------------------------------------------
+  
+  observeEvent(input$topleft_modal, {
+    showModal(modalDialog(
+      title = "Reach Error Plot",
+      includeMarkdown("markdown/reacherr-modal.md"),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$topright_modal, {
+    showModal(modalDialog(
+      title = "Node Error Accumulation Plot",
+      withMathJax(includeMarkdown("markdown/nodeaccum-modal.md")),
+      easyClose = TRUE,
+      footer = NULL
+      
+    ))
+  })
+  
+  observeEvent(input$bottomright_modal, {
+    if (input$varselect == "wse") {
+      showModal(modalDialog(
+        title = "Pixel Height Plot",
+        includeMarkdown("markdown/pixheight-modal.md"),
+        easyClose = TRUE,
+        footer = NULL
+      ))
+    } else {
+      showModal(modalDialog(
+        title = "Pixel Area Plot",
+        includeMarkdown("markdown/pixarea-modal.md"),
+        easyClose = TRUE,
+        footer = NULL
+      ))
+    }
   })
   
 }

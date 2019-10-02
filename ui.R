@@ -8,13 +8,17 @@ ui <- dashboardPage(
     radioButtons("refdemselect", "Reference DEM", choices = c("GDEM", "SRTM"),
                  selected = "GDEM"),
     radioButtons("aggselect", "Pixel Aggregation", 
-                 choices = c("simple", "frac", "composite"), selected = "frac"),
+                 choiceNames = c("Simple", "Water Fraction", "Composite"),
+                 choiceValues = c("simple", "frac", "composite"), 
+                 selected = "frac"),
     checkboxInput("flagnodes", "Remove Ambiguous Nodes", value = FALSE)
   ),
   dashboardBody(
     fluidRow(
       column(width = 6,
-        box(title = "Reach Errors", width = NULL,
+        box(title = "", width = NULL,
+            strong("Reach Errors"), 
+            actionLink("topleft_modal", label = "", icon = icon("info-circle")),
             p("1. Click a point to bring up node errors"),
             plotlyOutput("reach_errplot")),
         tabBox(title = "Map", width = NULL,
@@ -28,17 +32,19 @@ ui <- dashboardPage(
                         plotOutput("slantmap_gdem")))
         ),
       column(width = 6,
-        box(title = "Node Error Accumulation", width = NULL,
+        box(title = "", width = NULL,
+            strong("Node Error Accumulation"), 
+            actionLink("topright_modal", label = "", icon = icon("info-circle")),
             p('2. Drag to select nodes and click "Plot" to bring up pixel maps.',
               " (You may need to click a second time.)"),
             actionButton("nodePlot", "Plot"),
-            # actionButton("nodePurge", "Purge"),
-            # actionButton("nodeRestore", "Restore All"),
             checkboxInput("err_rel", "Standardize", value = TRUE),
             plotlyOutput("node_accum")),
-        box(title = "Pixel Accumulation", width = NULL,
+        box(title = NULL, width = NULL,
+            strong("Pixel Accumulation"), 
+            actionLink("bottomright_modal", label = "", icon = icon("info-circle")),
             plotOutput("pix_accum"))
-      )
+      ) 
     )
   )
 )
